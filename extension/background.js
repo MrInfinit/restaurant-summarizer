@@ -1,5 +1,5 @@
 chrome.runtime.onInstalled.addListener(() => {
-  console.log("Review Aggregator Extension Installed");
+  console.log("ReviewFinder Extension Installed");
 });
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -7,24 +7,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const restaurantName = request.restaurantName;
     const apiUrl = `http://localhost:3000/summarize?restaurant=${encodeURIComponent(restaurantName)}`;
 
-    // Use async function to handle the fetch promise
-    (async () => {
-      try {
-        const response = await fetch(apiUrl);
+    // Use fetch outside async IIFE to ensure sendResponse works
+    fetch(apiUrl)
+      .then(response => {
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
-        const data = await response.json();
+        return response.json();
+      })
+      .then(data => {
         sendResponse({ summary: data.summary });
-      } catch (error) {
-        console.error('Error fetching summary from backend:', error);
-        // Send an error response back to the popup
+      })
+      .catch(error => {
+        console.error("Error fetching summary from backend:", error);
         sendResponse({ error: "Failed to fetch summary from backend." });
-      }
-    })();
+      });
 
-    // Return true to indicate that the response will be sent asynchronously
-    return true;
+    return true; //  Required to keep sendResponse alive asynchronously
   }
 });
 

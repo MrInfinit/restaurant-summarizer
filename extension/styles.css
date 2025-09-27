@@ -103,4 +103,21 @@ button:hover {
   color: #333;
 }
 
+.banner {
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+  margin-bottom: 15px;
+  object-fit: cover;
+}
+
+.divider {
+  border: none;
+  height: 2px;
+  background-color: #5e503f; /* Matches your button color */
+  margin: 10px 0 20px 0;
+  border-radius: 1px;
+}
+
+
 

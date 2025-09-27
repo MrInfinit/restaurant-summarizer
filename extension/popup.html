@@ -1,14 +1,21 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Restaurant Summarizer</title>
-  <link rel="stylesheet" type="text/css" href="popup.css">
+  <title>Review Aggregator</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <h1>Restaurant Summarizer</h1>
-  <p>This extension will summarize restaurant reviews.</p>
-  <button id="summarize">Summarize</button>
-  <div id="summary"></div>
+  <h1>Reviews</h1>
+  <div id="reviews">Click to fetch reviews</div>
+  <button id="fetchBtn">Get Reviews</button>
   <script src="popup.js"></script>
+<style>
+  body {
+    background-color: lightbrown;
+    width: 290px;
+    height: 550px;
+  }
+</style>
+
 </body>
 </html>

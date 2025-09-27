@@ -1,0 +1,15 @@
+body {
+  font-family: sans-serif;
+  width: 300px;
+  padding: 10px;
+}
+
+h1 {
+  font-size: 1.2em;
+}
+
+#summary {
+  margin-top: 10px;
+  border-top: 1px solid #ccc;
+  padding-top: 10px;
+}

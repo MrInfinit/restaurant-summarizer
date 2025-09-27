@@ -3,7 +3,7 @@
   "name": "ReviewFinder",
   "version": "1.0",
   "description": "Aggregates reviews from Yelp, Reddit, and more.",
-  "permissions": ["activeTab", "scripting", "storage"],
+  "permissions": ["activeTab", "scripting", "storage", "geolocation"],
   "icons": {
     "16": "icon.png",
     "48": "icon.png",

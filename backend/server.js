@@ -33,9 +33,13 @@ async function getReviewSnippets(query) {
 
 app.get('/summarize', async (req, res) => {
   const restaurantQuery = req.query.restaurant;
+  const { lat, lon } = req.query;
 
   if (!restaurantQuery) {
     return res.status(400).json({ error: 'Restaurant name is required' });
+  }
+  if (!lat || !lon) {
+    return res.status(400).json({ error: 'Latitude and longitude are required' });
   }
   if (!serpApiKey || serpApiKey === "YOUR_SERPAPI_API_KEY_HERE") {
     console.error("SerpApi API key is missing or not configured.");
@@ -46,25 +50,47 @@ app.get('/summarize', async (req, res) => {
     // Define the model ONCE at the top of the try block
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-    // Step 1: Identify the core restaurant chain name
-    console.log(`Step 1: Identifying core restaurant name from "${restaurantQuery}"...`);
-    const chainNamePrompt = `Extract the core restaurant chain name from the following query: "${restaurantQuery}". For example, if the query is "Chipotle on 5th Ave", the answer is "Chipotle". Respond with only the name.`;
-    const chainNameResult = await model.generateContent(chainNamePrompt);
-    const chainName = (await chainNameResult.response).text().trim();
-    console.log(`Identified chain: "${chainName}"`);
+    // Step 1: Analyze the user's query to determine the search term and type
+    console.log(`Step 1: Analyzing query: "${restaurantQuery}"`);
+    const analysisPrompt = `
+      Analyze the following user query for a restaurant search. Determine if the user is looking for a specific restaurant chain or a general food category.
+      - If it's a specific chain (e.g., "Chipotle", "Starbucks near me"), the type is "restaurant" and the search term should be the core name of the chain.
+      - If it's a food category (e.g., "pizza", "best burgers in SF"), the type is "category" and the search term should be the original query.
 
-    // Step 2: Find different locations for that chain
-    console.log(`Step 2: Finding locations for "${chainName}" near "${restaurantQuery}"...`);
+      Respond with ONLY a valid JSON object in the format: {"type": "restaurant" | "category", "search_term": "..."}
+
+      Query: "${restaurantQuery}"
+    `;
+    const analysisResult = await model.generateContent(analysisPrompt);
+    const analysisText = (await analysisResult.response).text().trim();
+    console.log(`Received analysis: ${analysisText}`);
+
+    let analysis;
+    try {
+      // The model sometimes wraps the JSON in markdown, so we clean it.
+      const cleanedJson = analysisText.replace(/^```json\n/, '').replace(/\n```$/, '');
+      analysis = JSON.parse(cleanedJson);
+    } catch (e) {
+      console.error("Failed to parse JSON from model:", analysisText);
+      return res.status(500).json({ error: "Sorry, I couldn't understand that request." });
+    }
+
+    const { type: queryType, search_term: search_q } = analysis;
+    console.log(`Query classified as: ${queryType}, with search term: "${search_q}"`);
+
+    // Step 2: Find different locations/restaurants based on the analysis
+    console.log(`Step 2: Finding locations for "${search_q}" near ${lat},${lon}...`);
     const locationSearch = await getJson({
       api_key: serpApiKey,
-      engine: "google_maps", // Use Google Maps engine for better location data
-      q: `${chainName} near ${restaurantQuery}`,
+      engine: "google_maps",
+      q: search_q,
+      ll: `@${lat},${lon},15z`,
       type: "search",
     });
 
     const locations = locationSearch.local_results?.slice(0, 2) || [];
     if (locations.length < 2) {
-      return res.status(404).json({ summary: `Could not find at least two different "${chainName}" locations near your search to compare.` });
+      return res.status(404).json({ summary: `Could not find at least two different "${search_q}" options near you to compare.` });
     }
 
     const location1 = locations[0];
@@ -77,32 +103,36 @@ app.get('/summarize', async (req, res) => {
 
     // Step 4: Build the advanced comparison prompt
     console.log("Step 4: Building advanced comparison prompt for Gemini...");
+    const comparisonSubject = queryType === 'restaurant' ? search_q : `best ${search_q}`;
     const comparisonPrompt = `
-      You are a helpful local guide. A user wants to know which of two locations of the same restaurant chain is better.
+      You are a helpful local guide. A user wants to know which of two restaurant options is better based on their query for "${comparisonSubject}".
 
       Here is the data I have gathered:
 
-      **Location 1: ${location1.title}**
+      **Option 1: ${location1.title}**
       Address: ${location1.address}
       Review Snippets:
       ${location1Reviews}
 
-      **Location 2: ${location2.title}**
+      **Option 2: ${location2.title}**
       Address: ${location2.address}
       Review Snippets:
       ${location2Reviews}
 
-      Your task is to compare these two locations. Analyze the review snippets for each, looking for clues about service speed, cleanliness, order accuracy, crowd levels, or staff friendliness.
+      Your task is to compare these two options. Analyze the review snippets for each, looking for clues about food quality, service speed, cleanliness, order accuracy, crowd levels, or staff friendliness.
 
-      First, provide a separate "Pros and Cons" list for each location based on the reviews.
-      Second, provide a final "Recommendation" on which location seems like the better choice and why.
+      First, provide a separate "Pros and Cons" list for each option based on the reviews.
+      Second, provide a final "Recommendation" on which option seems like the better choice and why.
 
       Format your entire response as an HTML document. Use <h3> for titles, <ul> and <li> for lists, <strong> for emphasis, and <p> for paragraphs.
     `;
 
     // Step 5: Generate the final analysis
     const finalResult = await model.generateContent(comparisonPrompt);
-    const summary = (await finalResult.response).text();
+    let summary = (await finalResult.response).text();
+
+    // Clean the summary to remove markdown code block fences
+    summary = summary.replace(/^```html\n/, '').replace(/\n```$/, '').trim();
 
     console.log("Generated Comparison:", summary);
     res.json({ summary: summary });

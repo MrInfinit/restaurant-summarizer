@@ -1,29 +1,35 @@
 chrome.runtime.onInstalled.addListener(() => {
-  console.log("ReviewFinder Extension Installed");
+  console.log("Review Aggregator Extension Installed");
 });
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "fetchSummary") {
-    const restaurantName = request.restaurantName;
-    const apiUrl = `http://localhost:3000/summarize?restaurant=${encodeURIComponent(restaurantName)}`;
+    const { restaurantName, location } = request;
+    let url = `http://localhost:3000/summarize?restaurant=${encodeURIComponent(restaurantName)}`;
+    if (location) {
+      url += `&lat=${location.latitude}&lon=${location.longitude}`;
+    }
 
-    // Use fetch outside async IIFE to ensure sendResponse works
-    fetch(apiUrl)
-      .then(response => {
+    // Use async function to handle the fetch promise
+    (async () => {
+      try {
+        const response = await fetch(url);
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          // Try to parse the error message from the backend
+          const errorData = await response.json().catch(() => null);
+          const errorMessage = errorData?.error || `HTTP error! status: ${response.status}`;
+          throw new Error(errorMessage);
         }
-        return response.json();
-      })
-      .then(data => {
+        const data = await response.json();
         sendResponse({ summary: data.summary });
-      })
-      .catch(error => {
-        console.error("Error fetching summary from backend:", error);
-        sendResponse({ error: "Failed to fetch summary from backend." });
-      });
+      } catch (error) {
+        console.error('Error fetching summary from backend:', error);
+        sendResponse({ summary: `Error: ${error.message}. Is the backend server running?` });
+      }
+    })();
 
-    return true; //  Required to keep sendResponse alive asynchronously
+    // Return true to indicate that the response will be sent asynchronously
+    return true;
   }
 });
 

@@ -3,19 +3,56 @@
 <head>
   <title>Review Aggregator</title>
   <link rel="stylesheet" href="styles.css">
+  <style>
+    body {
+      background-color: #d2b48c; /* Tan (similar to light brown) */
+      width: 290px;
+      height: 550px;
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
+      border-radius: 15px;
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: stretch;
+      overflow-y: auto;
+    }
+
+    h1 {
+      font-size: 20px;
+      color: #4b2e2e;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+
+    #reviews {
+      flex-grow: 1;
+      font-size: 14px;
+      color: #333;
+      margin-bottom: 20px;
+    }
+
+    button {
+      padding: 10px;
+      background-color: #4b2e2e;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    button:hover {
+      background-color: #3a1f1f;
+    }
+  </style>
 </head>
 <body>
   <h1>Reviews</h1>
   <div id="reviews">Click to fetch reviews</div>
   <button id="fetchBtn">Get Reviews</button>
   <script src="popup.js"></script>
-<style>
-  body {
-    background-color: lightbrown;
-    width: 290px;
-    height: 550px;
-  }
-</style>
-
 </body>
 </html>

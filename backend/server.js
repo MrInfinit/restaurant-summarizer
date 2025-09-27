@@ -19,10 +19,22 @@ app.use((req, res, next) => {
   next();
 });
 
-app.get('/summarize', async (req, res) => {
-  const restaurantName = req.query.restaurant;
+// Helper function to get search snippets for a specific location
+async function getReviewSnippets(query) {
+  const search = await getJson({
+    api_key: serpApiKey,
+    engine: "google",
+    q: query,
+    location: "United States",
+  });
+  if (!search.organic_results) return "No information found.";
+  return search.organic_results.slice(0, 4).map(r => r.snippet).join("\n");
+}
 
-  if (!restaurantName) {
+app.get('/summarize', async (req, res) => {
+  const restaurantQuery = req.query.restaurant;
+
+  if (!restaurantQuery) {
     return res.status(400).json({ error: 'Restaurant name is required' });
   }
   if (!serpApiKey || serpApiKey === "YOUR_SERPAPI_API_KEY_HERE") {
@@ -31,39 +43,68 @@ app.get('/summarize', async (req, res) => {
   }
 
   try {
-    // 1. Perform a web search for the restaurant to gather information
-    console.log(`Performing web search for: ${restaurantName} using SerpApi...`);
-    const searchResults = await getJson({
+    // Define the model ONCE at the top of the try block
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+    // Step 1: Identify the core restaurant chain name
+    console.log(`Step 1: Identifying core restaurant name from "${restaurantQuery}"...`);
+    const chainNamePrompt = `Extract the core restaurant chain name from the following query: "${restaurantQuery}". For example, if the query is "Chipotle on 5th Ave", the answer is "Chipotle". Respond with only the name.`;
+    const chainNameResult = await model.generateContent(chainNamePrompt);
+    const chainName = (await chainNameResult.response).text().trim();
+    console.log(`Identified chain: "${chainName}"`);
+
+    // Step 2: Find different locations for that chain
+    console.log(`Step 2: Finding locations for "${chainName}" near "${restaurantQuery}"...`);
+    const locationSearch = await getJson({
       api_key: serpApiKey,
-      engine: "google",
-      q: `${restaurantName} reviews`,
-      location: "United States",
+      engine: "google_maps", // Use Google Maps engine for better location data
+      q: `${chainName} near ${restaurantQuery}`,
+      type: "search",
     });
 
-    // 2. Extract relevant text from the search results
-    let searchContext = "";
-    if (searchResults.organic_results) {
-      // Get snippets from the top 5 results
-      searchContext = searchResults.organic_results.slice(0, 5).map(result => result.snippet).join("\n");
-    }
-    if (searchResults.knowledge_graph && searchResults.knowledge_graph.description) {
-      searchContext = searchResults.knowledge_graph.description + "\n" + searchContext;
+    const locations = locationSearch.local_results?.slice(0, 2) || [];
+    if (locations.length < 2) {
+      return res.status(404).json({ summary: `Could not find at least two different "${chainName}" locations near your search to compare.` });
     }
 
-    if (!searchContext) {
-      return res.status(404).json({ error: `Could not find any web results for "${restaurantName}".` });
-    }
+    const location1 = locations[0];
+    const location2 = locations[1];
 
-    // 3. Use the search results to generate a summary with Gemini
-    console.log("Generating summary with Gemini based on web results...");
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-    const prompt = `Based on the following web search results, provide a concise summary for the restaurant "${restaurantName}". Focus on food, service, and ambiance. Do not mention the search results directly in your summary.\n\nSEARCH RESULTS:\n${searchContext}`;
+    // Step 3: Gather review data for each location
+    console.log(`Step 3: Gathering reviews for "${location1.title}" and "${location2.title}"...`);
+    const location1Reviews = await getReviewSnippets(`${location1.title} reviews`);
+    const location2Reviews = await getReviewSnippets(`${location2.title} reviews`);
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const summary = response.text();
+    // Step 4: Build the advanced comparison prompt
+    console.log("Step 4: Building advanced comparison prompt for Gemini...");
+    const comparisonPrompt = `
+      You are a helpful local guide. A user wants to know which of two locations of the same restaurant chain is better.
 
-    console.log("Generated Summary:", summary);
+      Here is the data I have gathered:
+
+      **Location 1: ${location1.title}**
+      Address: ${location1.address}
+      Review Snippets:
+      ${location1Reviews}
+
+      **Location 2: ${location2.title}**
+      Address: ${location2.address}
+      Review Snippets:
+      ${location2Reviews}
+
+      Your task is to compare these two locations. Analyze the review snippets for each, looking for clues about service speed, cleanliness, order accuracy, crowd levels, or staff friendliness.
+
+      First, provide a separate "Pros and Cons" list for each location based on the reviews.
+      Second, provide a final "Recommendation" on which location seems like the better choice and why.
+
+      Format your entire response as an HTML document. Use <h3> for titles, <ul> and <li> for lists, <strong> for emphasis, and <p> for paragraphs.
+    `;
+
+    // Step 5: Generate the final analysis
+    const finalResult = await model.generateContent(comparisonPrompt);
+    const summary = (await finalResult.response).text();
+
+    console.log("Generated Comparison:", summary);
     res.json({ summary: summary });
 
   } catch (error) {

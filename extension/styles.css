@@ -3,7 +3,7 @@ body {
   font-family: Inter, sans-serif;
   background-color: #bd9a73;
   padding: 20px;
-  width: 280px;
+  width: 320px;
   height: 600px;
   box-sizing: border-box;
   margin: 0;
@@ -76,5 +76,48 @@ button:hover {
   overflow-y: auto;
   box-shadow: 0 0 10px rgba(0,0,0,0.1);
 }
+
+.summary-section {
+  background-color: #fff8f0;
+  padding: 10px;
+  border-radius: 10px;
+  box-shadow: 0 0 5px rgba(0,0,0,0.1);
+}
+
+.summary-section h2 {
+  font-size: 16px;
+  color: #4b2e2e;
+  margin-top: 10px;
+  margin-bottom: 5px;
+}
+
+.summary-section ul {
+  list-style: none;
+  padding-left: 0;
+  margin: 0 0 10px 0;
+}
+
+.summary-section li {
+  padding: 5px 0;
+  font-size: 14px;
+  color: #333;
+}
+
+.banner {
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+  margin-bottom: 15px;
+  object-fit: cover;
+}
+
+.divider {
+  border: none;
+  height: 2px;
+  background-color: #5e503f; /* Matches your button color */
+  margin: 10px 0 20px 0;
+  border-radius: 1px;
+}
+
 
 

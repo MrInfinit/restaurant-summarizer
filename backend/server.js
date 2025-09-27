@@ -1,7 +1,12 @@
 const express = require('express');
-const axios = require('axios');
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+require('dotenv').config();
+
 const app = express();
 const port = 3000;
+
+// Initialize the Google Generative AI client
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 app.use(express.json());
 
@@ -19,23 +24,28 @@ app.get('/summarize', async (req, res) => {
     return res.status(400).json({ error: 'Restaurant name is required' });
   }
 
-  // In a real application, you would:
-  // 1. Search for reviews from multiple sources (Google, Yelp, etc.)
-  // 2. Pass the reviews to an AI service (ChatGPT, Gemini) for summarization.
+  try {
+    // In a real application, you would first scrape reviews from various sources.
+    // For this example, we'll use some dummy review data.
+    const reviews = `
+      - "The food at ${restaurantName} was absolutely amazing! Best pasta I've ever had."
+      - "Great atmosphere and friendly staff, but the food was a bit overpriced for the quality."
+      - "A wonderful experience from start to finish. The service was impeccable and the desserts are to die for."
+      - "I had a reservation but still had to wait 30 minutes. The main course was cold."
+    `;
 
-  // For this example, we'll return a placeholder summary.
-  const placeholderSummary = `
-    <h3>Summary for ${restaurantName}</h3>
-    <p><strong>Overall:</strong> This is a fantastic restaurant with a great atmosphere.</p>
-    <ul>
-      <li><strong>Food:</strong> Customers rave about the delicious and innovative dishes. The steak is a must-try.</li>
-      <li><strong>Service:</strong> The staff is friendly, attentive, and knowledgeable.</li>
-      <li><strong>Ambiance:</strong> The decor is modern and stylish, making it a great place for a special occasion.</li>
-    </ul>
-    <p><em>(This is a placeholder summary. A real implementation would use an AI service to generate a summary from multiple review sources.)</em></p>
-  `;
+    const model = genAI.getGenerativeModel({ model: "gemini-pro"});
+    const prompt = `Summarize the following reviews for the restaurant "${restaurantName}":\n\n${reviews}`;
 
-  res.json({ summary: placeholderSummary });
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const summary = response.text();
+
+    res.json({ summary: summary });
+  } catch (error) {
+    console.error('Error generating summary with Gemini:', error);
+    res.status(500).json({ error: 'Failed to generate summary' });
+  }
 });
 
 app.listen(port, () => {

@@ -19,16 +19,32 @@ app.use((req, res, next) => {
   next();
 });
 
-// Helper function to get search snippets for a specific location
-async function getReviewSnippets(query) {
-  const search = await getJson({
-    api_key: serpApiKey,
-    engine: "google",
-    q: query,
-    location: "United States",
-  });
-  if (!search.organic_results) return "No information found.";
-  return search.organic_results.slice(0, 4).map(r => r.snippet).join("\n");
+// Helper function to get reviews from multiple sources
+async function getReviewSnippets(restaurantName, location) {
+  const sources = [
+    { query: `${restaurantName} reviews site:yelp.com`, source: "Yelp" },
+    { query: `${restaurantName} reviews ${location} site:reddit.com`, source: "Reddit" },
+    { query: `${restaurantName} ${location} google reviews`, source: "Google" }
+  ];
+
+  const reviews = {};
+  for (const { query, source } of sources) {
+    const search = await getJson({
+      api_key: serpApiKey,
+      engine: "google",
+      q: query,
+      location: "United States",
+      num: 3 // Limit to 3 results per source
+    });
+    
+    if (search.organic_results) {
+      reviews[source] = search.organic_results
+        .slice(0, 2)
+        .map(r => r.snippet)
+        .join("\n");
+    }
+  }
+  return reviews;
 }
 
 app.get('/summarize', async (req, res) => {
@@ -98,33 +114,30 @@ app.get('/summarize', async (req, res) => {
 
     // Step 3: Gather review data for each location
     console.log(`Step 3: Gathering reviews for "${location1.title}" and "${location2.title}"...`);
-    const location1Reviews = await getReviewSnippets(`${location1.title} reviews`);
-    const location2Reviews = await getReviewSnippets(`${location2.title} reviews`);
+    const location1Reviews = await getReviewSnippets(location1.title, location1.address);
+    const location2Reviews = await getReviewSnippets(location2.title, location2.address);
 
     // Step 4: Build the advanced comparison prompt
     console.log("Step 4: Building advanced comparison prompt for Gemini...");
     const comparisonSubject = queryType === 'restaurant' ? search_q : `best ${search_q}`;
     const comparisonPrompt = `
-      You are a helpful local guide. A user wants to know which of two restaurant options is better based on their query for "${comparisonSubject}".
+      You are a concise and direct restaurant comparison expert. Compare these two options based on reviews from Yelp, Reddit, and Google for "${comparisonSubject}".
 
-      Here is the data I have gathered:
+      **${location1.title}**
+      Location: ${location1.address}
+      Reviews from multiple sources:
+      ${Object.entries(location1Reviews).map(([source, reviews]) => `${source}:\n${reviews}`).join('\n\n')}
 
-      **Option 1: ${location1.title}**
-      Address: ${location1.address}
-      Review Snippets:
-      ${location1Reviews}
+      **${location2.title}**
+      Location: ${location2.address}
+      Reviews from multiple sources:
+      ${Object.entries(location2Reviews).map(([source, reviews]) => `${source}:\n${reviews}`).join('\n\n')}
 
-      **Option 2: ${location2.title}**
-      Address: ${location2.address}
-      Review Snippets:
-      ${location2Reviews}
+      Provide an extremely concise analysis focusing only on the most important factors:
+      1. Create a brief bullet list of key strengths and weaknesses for each option
+      2. Make a clear recommendation in 1-2 sentences maximum
 
-      Your task is to compare these two options. Analyze the review snippets for each, looking for clues about food quality, service speed, cleanliness, order accuracy, crowd levels, or staff friendliness.
-
-      First, provide a separate "Pros and Cons" list for each option based on the reviews.
-      Second, provide a final "Recommendation" on which option seems like the better choice and why.
-
-      Format your entire response as an HTML document. Use <h3> for titles, <ul> and <li> for lists, <strong> for emphasis, and <p> for paragraphs. Also do not use colors and try to keep it in black color only.
+      Format as HTML. Use <h3> for titles, <ul> and <li> for lists. Keep everything short and to the point. Avoid unnecessary words or redundant information.
     `;
 
     // Step 5: Generate the final analysis

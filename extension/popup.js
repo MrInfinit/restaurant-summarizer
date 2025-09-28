@@ -1,6 +1,11 @@
 document.getElementById("fetchBtn").addEventListener("click", () => {
   const reviewsDiv = document.getElementById("reviews");
-  reviewsDiv.textContent = "Fetching...";
+  const loader = document.getElementById("loader");
+  const fetchBtn = document.getElementById("fetchBtn");
+
+  reviewsDiv.innerHTML = ""; // Clear previous content
+  loader.style.display = "block"; // Show loader
+  fetchBtn.disabled = true; // Disable button
 
   navigator.geolocation.getCurrentPosition((position) => {
     const { latitude, longitude } = position.coords;
@@ -15,6 +20,8 @@ document.getElementById("fetchBtn").addEventListener("click", () => {
         // Check for injection errors or if no result was found
         if (chrome.runtime.lastError || !injectionResults || !injectionResults[0]?.result) {
           reviewsDiv.textContent = "Please search on Google first.";
+          loader.style.display = "none"; // Hide loader
+          fetchBtn.disabled = false; // Enable button
           return;
         } else {
           restaurantName = injectionResults[0].result;
@@ -22,6 +29,8 @@ document.getElementById("fetchBtn").addEventListener("click", () => {
 
         if (!restaurantName) {
           reviewsDiv.textContent = "Please search on Google first.";
+          loader.style.display = "none"; // Hide loader
+          fetchBtn.disabled = false; // Enable button
           return;
         }
 
@@ -31,6 +40,9 @@ document.getElementById("fetchBtn").addEventListener("click", () => {
           restaurantName: restaurantName,
           location: { latitude, longitude }
         }, (response) => {
+          loader.style.display = "none"; // Hide loader
+          fetchBtn.disabled = false; // Enable button
+
           if (chrome.runtime.lastError) {
             reviewsDiv.textContent = "Error fetching summary. Is the backend running?";
             console.error(chrome.runtime.lastError);
@@ -45,6 +57,8 @@ document.getElementById("fetchBtn").addEventListener("click", () => {
       });
     });
   }, (error) => {
+    loader.style.display = "none"; // Hide loader
+    fetchBtn.disabled = false; // Enable button
     reviewsDiv.textContent = "Could not get location. Please allow location access.";
     console.error("Geolocation error:", error);
   });

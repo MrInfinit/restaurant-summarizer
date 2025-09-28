@@ -1,18 +1,20 @@
 <!DOCTYPE html>
 <html>
 <head>
+  
   <title>ReviewFinder</title>
   <link rel="stylesheet" href="popup.css">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  
-  <img src="banner.png" alt="ReviewFinder Banner" class="banner">
-  <hr class="divider">
+  <div class="popup-container">
+    <img src="banner.png" alt="ReviewFinder Banner" class="banner">
+    <hr class="divider">
 
-  <div id="reviews">Click to fetch reviews</div>
-  <button id="fetchBtn">Get Reviews</button>
-
+    <div class="loader" id="loader"></div>
+    <div id="reviews">Click to fetch reviews</div>
+    <button id="fetchBtn">Get Reviews</button>
+  </div>
   <script src="popup.js"></script>
 </body>
 </html>

@@ -124,7 +124,7 @@ app.get('/summarize', async (req, res) => {
       First, provide a separate "Pros and Cons" list for each option based on the reviews.
       Second, provide a final "Recommendation" on which option seems like the better choice and why.
 
-      Format your entire response as an HTML document. Use <h3> for titles, <ul> and <li> for lists, <strong> for emphasis, and <p> for paragraphs.
+      Format your entire response as an HTML document. Use <h3> for titles, <ul> and <li> for lists, <strong> for emphasis, and <p> for paragraphs. Also do not use colors and try to keep it in black color only.
     `;
 
     // Step 5: Generate the final analysis

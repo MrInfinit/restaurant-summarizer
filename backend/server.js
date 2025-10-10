@@ -56,6 +56,7 @@ app.get('/summarize', async (req, res) => {
       Analyze the following user query for a restaurant search. Determine if the user is looking for a specific restaurant chain or a general food category.
       - If it's a specific chain (e.g., "Chipotle", "Starbucks near me"), the type is "restaurant" and the search term should be the core name of the chain.
       - If it's a food category (e.g., "pizza", "best burgers in SF"), the type is "category" and the search term should be the original query.
+      - If it is a restaurant but it's not a chain restaurant like chipotle, mcdonalds, and taco bell, then the second restaurant should be a local competitor.
 
       Respond with ONLY a valid JSON object in the format: {"type": "restaurant" | "category", "search_term": "..."}
 
@@ -88,7 +89,36 @@ app.get('/summarize', async (req, res) => {
       type: "search",
     });
 
-    const locations = locationSearch.local_results?.slice(0, 2) || [];
+    let locations = locationSearch.local_results?.slice(0, 2) || [];
+
+    if (locations.length === 1 && queryType === 'restaurant') {
+      console.log(`Only one location found for "${search_q}". Finding a competitor.`);
+
+      // Step 2a: Find the category of the restaurant
+      const categoryPrompt = `What is the primary food category for the restaurant "${search_q}"? Respond with only the category name (e.g., "Pizza", "Mexican", "Sushi").`;
+      const categoryResult = await model.generateContent(categoryPrompt);
+      const categoryText = (await categoryResult.response).text().trim();
+      console.log(`Determined category: "${categoryText}"`);
+
+      // Step 2b: Search for other restaurants in the same category
+      const competitorSearch = await getJson({
+        api_key: serpApiKey,
+        engine: "google_maps",
+        q: categoryText, // Search for the category
+        ll: `@${lat},${lon},15z`,
+        type: "search"
+      });
+
+      const competitorLocations = competitorSearch.local_results || [];
+      // Find the first competitor that is not the original restaurant
+      const competitor = competitorLocations.find(loc => loc.title.toLowerCase() !== search_q.toLowerCase());
+
+      if (competitor) {
+        console.log(`Found competitor: "${competitor.title}"`);
+        locations.push(competitor);
+      }
+    }
+
     if (locations.length < 2) {
       return res.status(404).json({ summary: `Could not find at least two different "${search_q}" options near you to compare.` });
     }
@@ -119,12 +149,13 @@ app.get('/summarize', async (req, res) => {
       Review Snippets:
       ${location2Reviews}
 
-      Your task is to compare these two options. Analyze the review snippets for each, looking for clues about food quality, service speed, cleanliness, order accuracy, crowd levels, or staff friendliness.
+      Your task is to compare these two options based on the review snippets.
+      
+      Provide a concise one line for the each of the pros and cons.
 
-      First, provide a separate "Pros and Cons" list for each option based on the reviews.
-      Second, provide a final "Recommendation" on which option seems like the better choice and why.
+      Provide a concise, one-paragraph recommendation on which option seems like the better choice and why.
 
-      Format your entire response as an HTML document. Use <h3> for titles, <ul> and <li> for lists, <strong> for emphasis, and <p> for paragraphs. Also do not use colors and try to keep it in black color only.
+      Format your entire response as an HTML document. Use <strong> for emphasis, and <p> for the paragraph. Also do not use colors and try to keep it in black color only.
     `;
 
     // Step 5: Generate the final analysis
